@@ -5,16 +5,14 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'sudo build -t aws-compliance-checker .'
+                sh 'docker build -t aws-compliance-checker .'
             }
         }
 
         stage('Run Compliance Scan') {
             steps {
                 sh '''
-                docker run --rm \
-                --network host \
-                aws-compliance-checker
+                docker run --rm --network host aws-compliance-checker
                 '''
             }
         }
@@ -26,4 +24,3 @@ pipeline {
         }
     }
 }
-
