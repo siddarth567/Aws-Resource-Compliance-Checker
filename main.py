@@ -24,3 +24,10 @@ if all_results:
 else:
 
     print("\nAll Resources are Compliant.")
+
+import os
+
+os.makedirs("reports", exist_ok=True)
+
+with open("reports/compliance_report.txt", "w") as f:
+    f.write(tabulate(all_results, headers="keys", tablefmt="grid"))
