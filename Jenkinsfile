@@ -12,6 +12,8 @@ pipeline {
         stage('Run Compliance Scan') {
             steps {
                 sh '''
+                mkdir -p reports
+
                 docker run --rm --network host aws-compliance-checker
                 '''
             }
