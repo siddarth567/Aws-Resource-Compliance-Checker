@@ -26,8 +26,13 @@ else:
     print("\nAll Resources are Compliant.")
 
 import os
+from tabulate import tabulate
 
+# Create reports folder if not present
 os.makedirs("reports", exist_ok=True)
 
+# Save report
 with open("reports/compliance_report.txt", "w") as f:
     f.write(tabulate(all_results, headers="keys", tablefmt="grid"))
+
+print("Report saved to reports/compliance_report.txt")
