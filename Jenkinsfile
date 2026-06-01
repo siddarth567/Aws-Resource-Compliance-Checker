@@ -14,7 +14,10 @@ pipeline {
                 sh '''
                 mkdir -p reports
 
-                docker run --rm --network host aws-compliance-checker
+                docker run --rm \
+                  --network host \
+                  -v $(pwd)/reports:/app/reports \
+                  aws-compliance-checker
                 '''
             }
         }
