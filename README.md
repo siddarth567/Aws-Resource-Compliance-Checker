@@ -288,11 +288,10 @@ Pipeline runs automatically every day at **8:00 PM UTC** (configurable via cron 
 2. Scroll to **Email Notification** section
 3. Configure your SMTP server:
    - **SMTP server**: `smtp.gmail.com` (or your email provider)
-   - **SMTP port**: `587`
+   - **SMTP port**: `465`
    - **User name**: Your email address
    - **Password**: Your email password or app-specific password
-   - **SMTP Authentication**: Enable
-   - **Use TLS**: Enable
+   - **Use SSL**: Enable (if its enabled we need to open port number 465 in our sg)
 4. Set default recipient email if needed
 
 #### Slack Webhook Setup
@@ -474,7 +473,7 @@ docker run -d --name jenkins -p 9090:8080 -p 50000:50000 jenkins/jenkins:lts
 
 **Email not sending:**
 - Verify SMTP credentials in Jenkins System Configuration
-- Check firewall/port 587 is accessible
+- Check firewall/port 465 is accessible
 - For Gmail: Use app-specific password, not regular password
 - Check Jenkins logs: `docker logs -f jenkins`
 
