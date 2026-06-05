@@ -6,13 +6,19 @@ pipeline {
     }
 
     parameters {
-        string(name: 'EMAIL_RECIPIENT', defaultValue: 'ksiddharth263@gmail.com', description: 'Email address to send the compliance report to')
+        string(
+            name: 'EMAIL_RECIPIENT',
+            defaultValue: 'ksiddharth263@gmail.com',
+            description: 'Email address to send compliance report'
+        )
     }
 
     stages {
+
         stage('Checkout Source Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/siddarth567/Aws-Resource-Compliance-Checker.git'
+                git branch: 'main',
+                    url: 'https://github.com/siddarth567/Aws-Resource-Compliance-Checker.git'
             }
         }
 
@@ -27,19 +33,19 @@ pipeline {
                 sh '''
                 mkdir -p reports
 
-                # Clean up any leftover container from previous runs
                 docker rm -f compliance-runner || true
 
-                # Create the container
-                docker create --name compliance-runner --network host aws-compliance-checker
+                docker create \
+                    --name compliance-runner \
+                    --network host \
+                    aws-compliance-checker
 
-                # Run the container and show output
                 docker start -a compliance-runner
 
-                # Copy the generated report file from the container to Jenkins workspace
-                docker cp compliance-runner:/app/reports/compliance_report.txt ./reports/compliance_report.txt
+                docker cp \
+                    compliance-runner:/app/reports/compliance_report.txt \
+                    ./reports/compliance_report.txt
 
-                # Clean up the container
                 docker rm compliance-runner
                 '''
             }
@@ -47,7 +53,31 @@ pipeline {
 
         stage('Archive Report') {
             steps {
-                archiveArtifacts artifacts: 'reports/compliance_report.txt', fingerprint: true
+                archiveArtifacts(
+                    artifacts: 'reports/compliance_report.txt',
+                    fingerprint: true
+                )
+            }
+        }
+
+        stage('Send Slack Notification') {
+            steps {
+                withCredentials([
+                    string(
+                        credentialsId: 'SLACK_WEBHOOK',
+                        variable: 'SLACK_WEBHOOK_URL'
+                    )
+                ]) {
+
+                    sh """
+                    curl -X POST \
+                    -H 'Content-type: application/json' \
+                    --data '{
+                        "text":"🚨 AWS Compliance Scan Completed\\n\\nJob: ${JOB_NAME}\\nBuild: #${BUILD_NUMBER}\\nStatus: SUCCESS\\n\\nReport: ${BUILD_URL}artifact/reports/compliance_report.txt"
+                    }' \
+                    \$SLACK_WEBHOOK_URL
+                    """
+                }
             }
         }
     }
@@ -55,36 +85,58 @@ pipeline {
     post {
         always {
             script {
-                try {
-                    // Check if file exists before trying to read and email
-                    if (fileExists('reports/compliance_report.txt')) {
-                        def reportContent = readFile 'reports/compliance_report.txt'
-                        def recipient = params.EMAIL_RECIPIENT ?: 'ksiddharth263@gmail.com'
-                        emailext (
-                            subject: "AWS Compliance Scan Results - Build #${env.BUILD_NUMBER}",
-                            body: "Hello,\n\nHere are the latest AWS resource compliance scan results:\n\n${reportContent}\n\nFor more details, check the Jenkins build link: ${env.BUILD_URL}",
-                            to: recipient,
-                            attachmentsPattern: 'reports/compliance_report.txt'
-                        )
-                    } else {
-                        echo "No compliance report file found to email."
-                    }
-                } catch (Exception e1) {
-                    echo "emailext failed: ${e1.message}. Trying standard mail step..."
-                    try {
-                        if (fileExists('reports/compliance_report.txt')) {
-                            def reportContent = readFile 'reports/compliance_report.txt'
-                            def recipient = params.EMAIL_RECIPIENT ?: 'ksiddharth263@gmail.com'
-                            mail (
-                                to: recipient,
-                                subject: "AWS Compliance Scan Results - Build #${env.BUILD_NUMBER}",
-                                body: "Hello,\n\nHere are the latest AWS resource compliance scan results:\n\n${reportContent}\n\nFor more details, check the Jenkins build link: ${env.BUILD_URL}"
-                            )
-                        }
-                    } catch (Exception e2) {
-                        echo "Standard mail step also failed: ${e2.message}."
-                        echo "Please verify that the Jenkins Mailer / Email Extension plugin is installed and the SMTP server is configured in System Settings."
-                    }
+
+                if (fileExists('reports/compliance_report.txt')) {
+
+                    def reportContent = readFile(
+                        'reports/compliance_report.txt'
+                    )
+
+                    mail(
+                        to: params.EMAIL_RECIPIENT,
+                        subject: "AWS Compliance Scan Results - Build #${env.BUILD_NUMBER}",
+                        body: """
+Hello,
+
+AWS Compliance Scan completed successfully.
+
+==================================================
+COMPLIANCE REPORT
+==================================================
+
+${reportContent}
+
+==================================================
+BUILD DETAILS
+==================================================
+
+Build URL:
+${env.BUILD_URL}
+
+Report Artifact:
+${env.BUILD_URL}artifact/reports/compliance_report.txt
+
+Regards,
+Jenkins Automation
+"""
+                    )
+
+                    echo "Email notification sent."
+
+                } else {
+
+                    mail(
+                        to: params.EMAIL_RECIPIENT,
+                        subject: "AWS Compliance Scan Failed - Build #${env.BUILD_NUMBER}",
+                        body: """
+Compliance scan completed but no report file was found.
+
+Build URL:
+${env.BUILD_URL}
+"""
+                    )
+
+                    echo "Report file not found."
                 }
             }
         }
