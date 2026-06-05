@@ -4,7 +4,7 @@
 
 AWS Resource Compliance Checker is a Python-based automation project that scans AWS resources and identifies non-compliant infrastructure based on predefined security and governance rules.
 
-The project is containerized using Docker and integrated with Jenkins CI/CD to run compliance checks automatically.
+The project is containerized using Docker and integrated with Jenkins CI/CD to run compliance checks automatically with email and Slack notifications.
 
 ---
 
@@ -17,6 +17,8 @@ The project is containerized using Docker and integrated with Jenkins CI/CD to r
 * Run inside Docker container
 * Trigger scans through Jenkins pipeline
 * Archive compliance reports in Jenkins
+* **Email notifications** for compliance scan results
+* **Slack notifications** for real-time alerts
 
 ---
 
@@ -255,26 +257,160 @@ demosecurity → SSH Open to World
 
 ## Jenkins Pipeline
 
-Pipeline stages:
+### Pipeline Stages
 
-* Checkout Source Code
-* Build Docker Image
-* Run AWS Compliance Scan
-* Archive Compliance Report
+1. **Checkout Source Code** - Clones the repository
+2. **Build Docker Image** - Builds the compliance checker Docker image
+3. **Run Compliance Scan** - Executes the compliance scan inside a Docker container
+4. **Archive Report** - Archives the compliance report as a Jenkins artifact
+5. **Send Slack Notification** - Sends real-time alert to Slack channel
+6. **Email Notification** (Post) - Sends detailed compliance report via email
 
-Trigger:
+### Trigger
 
 ```text
-GitHub Push → Jenkins Build → Docker Scan → Compliance Report
+GitHub Push → Jenkins Build → Docker Scan → Compliance Report → Email & Slack Notification
 ```
 
-### Setting up Jenkins Pipeline
+### Scheduled Runs
+
+Pipeline runs automatically every day at **8:00 PM UTC** (configurable via cron expression `0 20 * * *`)
+
+---
+
+## Setting up Jenkins Pipeline
+
+### Prerequisites for Notifications
+
+#### Email Setup
+
+1. Go to **Manage Jenkins** → **System Configuration**
+2. Scroll to **Email Notification** section
+3. Configure your SMTP server:
+   - **SMTP server**: `smtp.gmail.com` (or your email provider)
+   - **SMTP port**: `587`
+   - **User name**: Your email address
+   - **Password**: Your email password or app-specific password
+   - **SMTP Authentication**: Enable
+   - **Use TLS**: Enable
+4. Set default recipient email if needed
+
+#### Slack Webhook Setup
+
+1. Go to your Slack workspace settings
+2. Create an Incoming Webhook:
+   - Navigate to **Apps & Integrations** → **Incoming Webhooks**
+   - Click **Create New Webhook**
+   - Select the channel to receive notifications
+   - Copy the Webhook URL
+3. In Jenkins, add the Webhook URL as a secret credential:
+   - Go to **Manage Jenkins** → **Manage Credentials**
+   - Click **Global credentials**
+   - Click **Add Credentials**
+   - Kind: **Secret text**
+   - Secret: Paste your Slack Webhook URL
+   - ID: `SLACK_WEBHOOK`
+   - Click **Create**
+
+### Configure Pipeline in Jenkins
 
 1. In Jenkins, click **New Item** → **Pipeline**
-2. Configure your GitHub repository URL
-3. Set the Pipeline script path to: `Jenkinsfile`
-4. Configure build triggers (e.g., GitHub webhook or poll SCM)
-5. Save and run the pipeline
+2. Enter job name and select **Pipeline**
+3. Scroll to **Pipeline** section
+4. Select **Pipeline script from SCM**
+5. Choose **Git** as SCM
+6. Enter repository URL: `https://github.com/siddarth567/Aws-Resource-Compliance-Checker.git`
+7. Set script path to: `Jenkinsfile`
+8. Configure build triggers:
+   - **Poll SCM**: Leave empty (using cron schedule in Jenkinsfile)
+   - Or use **GitHub webhook** for real-time triggers
+9. Add parameter for EMAIL_RECIPIENT (or use default value)
+10. Save and run the pipeline
+
+---
+
+## Email Notification Details
+
+### Recipient Configuration
+
+The email recipient is configurable via Jenkins parameters:
+- **Default recipient**: `ksiddharth263@gmail.com`
+- **Customizable per build**: Enter email address in build parameters
+
+### Email Content
+
+**Success Notification:**
+- Compliance scan status
+- Full compliance report content
+- Build number and URL
+- Link to compliance report artifact
+
+**Failure Notification:**
+- Error message indicating missing report file
+- Build URL for investigation
+
+### Sample Email
+
+```
+Hello,
+
+AWS Compliance Scan completed successfully.
+
+==================================================
+COMPLIANCE REPORT
+==================================================
+
+Running EC2 Tag Compliance Check...
+Running S3 Public Access Check...
+Running Security Group Check...
+
+Non-Compliant Resources Found:
+
+i-09ca5ed542aefac1d → Missing Tags: Owner, Environment
+demosecurity → SSH Open to World
+
+==================================================
+BUILD DETAILS
+==================================================
+
+Build URL:
+http://jenkins:8080/job/aws-compliance/45/
+
+Report Artifact:
+http://jenkins:8080/job/aws-compliance/45/artifact/reports/compliance_report.txt
+
+Regards,
+Jenkins Automation
+```
+
+---
+
+## Slack Notification Details
+
+### Webhook Configuration
+
+The Slack webhook URL is stored as a Jenkins credential `SLACK_WEBHOOK` for security.
+
+### Notification Message Format
+
+The Slack notification includes:
+- 🚨 Alert emoji for visibility
+- Job name
+- Build number
+- Build status
+- Direct link to compliance report artifact
+
+### Sample Slack Message
+
+```
+🚨 AWS Compliance Scan Completed
+
+Job: AWS-Compliance-Checker
+Build: #45
+Status: SUCCESS
+
+Report: [View Report](http://jenkins:8080/job/aws-compliance/45/artifact/reports/compliance_report.txt)
+```
 
 ---
 
@@ -296,16 +432,15 @@ launch-wizard-1 → SSH Open to World
 
 ## Future Enhancements
 
-* Email alerts for failed compliance checks
-* Slack notifications
-* HTML report generation
-* Scheduled scans using Jenkins cron jobs
 * Additional checks for:
-
   * IAM policies
   * EBS encryption
   * RDS backups
   * CloudTrail status
+* HTML report generation
+* Advanced filtering and reporting
+* Custom compliance rules engine
+* Dashboard for compliance trends
 
 ---
 
@@ -335,6 +470,26 @@ docker run -d --name jenkins -p 9090:8080 -p 50000:50000 jenkins/jenkins:lts
 # Access at http://localhost:9090
 ```
 
+### Email Notification Issues
+
+**Email not sending:**
+- Verify SMTP credentials in Jenkins System Configuration
+- Check firewall/port 587 is accessible
+- For Gmail: Use app-specific password, not regular password
+- Check Jenkins logs: `docker logs -f jenkins`
+
+### Slack Notification Issues
+
+**Webhook returning 404:**
+- Verify webhook URL is correct
+- Ensure webhook hasn't expired
+- Generate a new webhook if needed
+
+**Messages not appearing:**
+- Verify the channel exists and bot has permission
+- Check Jenkins logs for curl errors
+- Confirm webhook URL is stored correctly as secret credential
+
 ---
 
 ## Author
@@ -343,4 +498,4 @@ docker run -d --name jenkins -p 9090:8080 -p 50000:50000 jenkins/jenkins:lts
 
 DevOps / AWS Automation Project
 
-Built as part of hands-on DevOps learning using AWS, Docker, Jenkins and Python.
+Built as part of hands-on DevOps learning using AWS, Docker, Jenkins, Python, with email and Slack integration for automated notifications.
